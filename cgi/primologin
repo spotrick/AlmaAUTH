@@ -1,0 +1,90 @@
+#!/m1/shared/bin/perl -w
+
+=head1 NAME
+
+primologin
+
+=head1 DESCRIPTION
+
+primologin is a cgi authentication script used to authenticate access
+to Primo, using the External Script Authentication method. 
+
+Briefly, Primo will present an authentication form to the user, and
+then pass the input username and password to this script for validation.
+
+This script will then authenticate via LDAP or through Voyager using barcode,
+depending on the type of username entered -- an 11-character string
+starting with ten digits is assumed to be a barcode, and validated
+against the Voyager database; otherwise the username is
+assumed to be an LDAP account name and validated against a local LDAP
+server.
+
+=head1 USAGE
+
+This script needs to be installed as a cgi script on a web server.
+
+=head1 AUTHOR
+
+Steve Thomas <stephen.thomas@adelaide.edu.au>
+
+=head1 VERSION
+
+This is version 2013.12.02
+
+=cut
+
+use strict;
+
+use Data::Dumper;
+use CGI;
+use CGI::Carp qw(fatalsToBrowser);
+
+use lib "/m1/uals/lib";
+use Alma::User;
+use AUTH;
+
+my $DEBUG = 0;
+
+my $form = new CGI;
+
+my $username	= $form->param('BOR_ID');
+my $password	= $form->param('VERIFICATION');
+#my $institute	= $form->param('INSTITUTE');
+
+my $user = { authenticated => 'N' };
+if ($username && $password) {
+	$user = AUTH::Authenticate( $username, $password );
+}
+
+## Send back our response
+print "Content-type: text/xml\n\n";
+
+if ($user->{authenticated} eq 'N') {
+
+	print qq|<?xml version="1.0" encoding="UTF-8"?>
+<bor_authentication>
+<auth>N</auth>
+</bor_authentication>\n|;
+
+}
+else {
+
+	## get the user's email address ...
+	my $email = Alma::User::getEmailAddr( $user );
+
+	## ... and send back the required details
+	print qq|<?xml version="1.0" encoding="UTF-8"?>
+<bor-info>
+    <id>$user->{userDetails}->{userName}</id>
+    <institute>61ADELAIDE_INST</institute>
+    <group>$user->{userDetails}->{userGroup}</group>
+    <email_address>$email</email_address>
+    <name>$user->{userDetails}->{firstName}</name>
+    <institute>SUA-ALMA</institute>
+</bor-info>\n|;
+
+}
+
+exit;
+
+__END__
